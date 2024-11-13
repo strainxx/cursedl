@@ -1,6 +1,8 @@
 # e
 modpack/*
 !modpack/.gitkeep
+output/*
+!output/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
