@@ -13,17 +13,17 @@ headers = {
     # 'Accept-Encoding': 'gzip, deflate, br, zstd',
     'Connection': 'keep-alive',
     'Referer': 'https://www.curseforge.com/minecraft/mc-mods/cloth-config/download/5834708',
-    # 'Cookie': 'cf_cookieBarHandled=true; Unique_ID_v2=8e99d8b1ad2e461ab808f5c1aadf5621; CobaltSession=eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..keTqvSHcrNVDxRqjMq5XMw.g26rp0MyDG1giAIPz97wvDMs5ZOuhpWHd4NcME3ZtDOu6ua5__LDoXO42H9x12Eh.0QuRi-l-EGPcLd9lPz5J2Q; User=User%3DUserID%3D109413140%26UserName%3Deager_minsky49%26UserEmail%3Dyarik.chotkii%40gmail.com%26UserAvatar%3Dundefined; SiteUserToken=s%3AeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEwOTQxMzE0MCIsInNlc3Npb24iOiIyNDNlODg1YWU1MzE0M2E5YjdhMjMwZjcwYzU3NGU2MCIsImlhdCI6MTczMTE1MTIxOCwiZXhwIjoxNzMyMzYwODE4LCJpc3MiOiJjdXJzZWZvcmdlLmNvbSJ9.RdRBDLJBkyptH4YVg3XiDGjSl-weTkbjY8VfGhWf-PU.13a5HshpTBKJdXo6Fi1tPsLVsK6hangpxsAWU2wuTjA; Preferences.TimeZoneID=87; __cf_bm=Vhzl757rMZ6qH70Ku8xJLx079xGlc.ZCZXE6h.wnc2o-1731506181-1.0.1.1-1cm.K5NVv82SMdljIiyT27.5bzfhBwwkUaZJSbgC0BGCNBtRE4s.67llELG348UTs4d9fQIifo22mtkDvKhna_mxODSaHO5CUQJLSXB9pOc',
     'Upgrade-Insecure-Requests': '1',
     'Sec-Fetch-Dest': 'document',
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'same-origin',
     'Priority': 'u=0, i',
-    # Requests doesn't support trailers
-    # 'TE': 'trailers',
-}
+} # i love curlconverter.com
 
 class Logger:
+    """
+    Logger class
+    """
     def __init__(self):
         self.logfile = open("last.log", "w")
         self.logfile.write("CurseDL\n")
@@ -37,19 +37,38 @@ class Logger:
         self.__raw(prefix+" "+message+end)
 
 def get_filename(response: aiohttp.ClientResponse) -> str:
+    """
+    Get the filename from a given response.
+    """
     return response.url.path.split("/")[-1]
 async def download(url: str, path: str, logger: Logger) -> None:
+    """
+    Download a file from a given URL and save it to a given path.
+    """
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            logger.log(f"Downloading {url}", prefix="[DL]")
-            filename = get_filename(response)
-            with open(path+filename, "wb") as f:
-                while True:
-                    data = await response.content.read(1024)
-                    if not data:
-                        break
-                    f.write(data)
+        try:
+            async with session.get(url, headers=headers) as response:
+                logger.log(f"Downloading {url}", prefix="[DL]")
+                filename = get_filename(response)
+                with open(path+filename, "wb") as f:
+                    while True:
+                        data = await response.content.read(1024)
+                        if not data:
+                            break
+                        f.write(data)
+        except Exception as e:
+            logger.log(f"Failed to download {url}", prefix="[DL]")
+            logger.log(f"Error: {e}", prefix="[ERR]")
+            return
 
+def split(arr, size):
+     arrs = []
+     while len(arr) > size:
+         pice = arr[:size]
+         arrs.append(pice)
+         arr   = arr[size:]
+     arrs.append(arr)
+     return arrs
 
 async def main() -> None:
     logger = Logger()
@@ -81,20 +100,23 @@ async def main() -> None:
         for mod in mods:
             pId = mod["projectID"]
             fId = mod["fileID"]
-            required = mod["required"]
+            required = mod["required"] # Not used (currently)
             modTasks.append(download(f"https://www.curseforge.com/api/v1/mods/{pId}/files/{fId}/download", f"output/mods/", logger))
 
-        # await asyncio.gather(*modTasks)
+        # Downloading 5 mods in parallel at one time
+        work = split(modTasks, 5)
+        for batch in work:
+            await asyncio.gather(*batch)
+
         logger.log(f"Mods downloaded to output/mods/")
         logger.log(f"Moving overrides...")
-        # os.makedirs("output/overrides/", exist_ok=True)
-        dest_path = Path("output/overrides/")
-        src_path = Path("modpack/")
-        # for file in src_path.glob("*"):
-        #     print(file)
-        #     if file.is_dir():
-        #         shutil.copytree(file, src_path)
-        #     else:
-        #         shutil.copy(file, dest_path)
+        src_path = Path("modpack/overrides/")
+        dest_path = Path("output/")
+        for file in src_path.glob("*"):
+            logger.log(str(file), prefix="[MAIN] +")
+            if file.is_dir():
+                shutil.copytree(file, dest_path.joinpath(file.name), dirs_exist_ok=True)
+            else:
+                shutil.copy(file, dest_path)
         logger.log(f"Overrides moved to output/")
 asyncio.run(main())
